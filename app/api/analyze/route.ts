@@ -1,6 +1,9 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { NextRequest, NextResponse } from "next/server";
 
+// Vercel 함수 최대 실행시간 설정 (Hobby: 최대 60s)
+export const maxDuration = 60;
+
 const client = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
@@ -33,12 +36,27 @@ const KOREAN_FOOD_PROMPT = `당신은 한국 음식 전문 영양사입니다. �
 }`;
 
 export async function POST(req: NextRequest) {
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return NextResponse.json(
+      { error: "서버 설정 오류: API 키가 없습니다." },
+      { status: 500 }
+    );
+  }
+
   try {
     const formData = await req.formData();
     const imageFile = formData.get("image") as File;
 
     if (!imageFile) {
       return NextResponse.json({ error: "이미지가 없습니다." }, { status: 400 });
+    }
+
+    // 이미지 크기 제한 (4MB)
+    if (imageFile.size > 4 * 1024 * 1024) {
+      return NextResponse.json(
+        { error: "이미지 크기가 너무 큽니다. 4MB 이하의 사진을 사용해주세요." },
+        { status: 400 }
+      );
     }
 
     const bytes = await imageFile.arrayBuffer();
@@ -50,7 +68,7 @@ export async function POST(req: NextRequest) {
       | "image/webp";
 
     const response = await client.messages.create({
-      model: "claude-opus-4-6",
+      model: "claude-haiku-4-5-20251001",
       max_tokens: 1024,
       messages: [
         {
@@ -84,14 +102,21 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(result);
   } catch (error) {
     console.error("분석 오류:", error);
+
     if (error instanceof SyntaxError) {
       return NextResponse.json(
         { error: "AI 응답 파싱 실패. 다시 시도해주세요." },
         { status: 500 }
       );
     }
+    if (error instanceof Error && error.message.includes("timeout")) {
+      return NextResponse.json(
+        { error: "분석 시간이 초과되었습니다. 다시 시도해주세요." },
+        { status: 504 }
+      );
+    }
     return NextResponse.json(
-      { error: "분석 중 오류가 발생했습니다." },
+      { error: "분석 중 오류가 발생했습니다. 다시 시도해주세요." },
       { status: 500 }
     );
   }
