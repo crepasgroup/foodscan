@@ -2,9 +2,11 @@
 
 import { useState } from "react";
 import Image from "next/image";
+import { useSession } from "next-auth/react";
 import ImageUpload from "./components/ImageUpload";
 import NutritionCard from "./components/NutritionCard";
 import CalorieProgress from "./components/CalorieProgress";
+import LoginModal from "./components/LoginModal";
 import { NutritionData, MealType, MEAL_TYPE_LABELS, MEAL_TYPE_ICONS } from "./types";
 import { useApp } from "./context/AppContext";
 
@@ -20,12 +22,14 @@ function getMealTypeByHour(): MealType {
 
 export default function Home() {
   const { addRecord } = useApp();
+  const { data: session } = useSession();
   const [preview, setPreview] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [result, setResult] = useState<NutritionData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [mealType, setMealType] = useState<MealType>(getMealTypeByHour());
+  const [showLoginModal, setShowLoginModal] = useState(false);
 
   const handleImageSelect = (file: File, previewUrl: string) => {
     setSelectedFile(file);
@@ -103,6 +107,10 @@ export default function Home() {
 
   const handleSave = () => {
     if (!result) return;
+    if (!session) {
+      setShowLoginModal(true);
+      return;
+    }
     addRecord(result, preview ?? undefined, mealType);
     handleReset();
   };
@@ -115,6 +123,10 @@ export default function Home() {
   };
 
   return (
+    <>
+    {showLoginModal && (
+      <LoginModal onClose={() => setShowLoginModal(false)} />
+    )}
     <main className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-rose-50">
       {/* 헤더 */}
       <header className="bg-white/80 backdrop-blur-sm border-b border-orange-100 sticky top-0 z-10">
@@ -250,5 +262,6 @@ export default function Home() {
         )}
       </div>
     </main>
+    </>
   );
 }
