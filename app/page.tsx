@@ -34,6 +34,31 @@ export default function Home() {
     setError(null);
   };
 
+  // 이미지를 최대 1280px로 리사이즈 후 JPEG 압축 (Vercel 4.5MB 제한 대응)
+  const compressImage = (file: File): Promise<Blob> => {
+    return new Promise((resolve, reject) => {
+      const img = new window.Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        const MAX = 1280;
+        const scale = Math.min(1, MAX / Math.max(img.width, img.height));
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        const ctx = canvas.getContext("2d")!;
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        canvas.toBlob(
+          (blob) => blob ? resolve(blob) : reject(new Error("이미지 압축 실패")),
+          "image/jpeg",
+          0.85
+        );
+      };
+      img.onerror = reject;
+      img.src = url;
+    });
+  };
+
   const handleAnalyze = async () => {
     if (!selectedFile) return;
 
@@ -42,22 +67,34 @@ export default function Home() {
     setResult(null);
 
     try {
+      const compressed = await compressImage(selectedFile);
+
       const formData = new FormData();
-      formData.append("image", selectedFile);
+      formData.append("image", compressed, "image.jpg");
 
       const res = await fetch("/api/analyze", {
         method: "POST",
         body: formData,
       });
 
-      const data = await res.json();
+      // JSON이 아닌 응답(413 등) 처리
+      const text = await res.text();
+      let data: { error?: string };
+      try {
+        data = JSON.parse(text);
+      } catch {
+        if (res.status === 413) {
+          throw new Error("이미지 크기가 너무 큽니다. 더 작은 사진을 사용해주세요.");
+        }
+        throw new Error("서버 오류가 발생했습니다. 다시 시도해주세요.");
+      }
 
       if (!res.ok) {
         throw new Error(data.error || "분석 실패");
       }
 
-      setResult(data);
-      addRecord(data, preview ?? undefined, mealType);
+      setResult(data as NutritionData);
+      addRecord(data as NutritionData, preview ?? undefined, mealType);
     } catch (err) {
       setError(err instanceof Error ? err.message : "알 수 없는 오류");
     } finally {
