@@ -94,12 +94,17 @@ export default function Home() {
       }
 
       setResult(data as NutritionData);
-      addRecord(data as NutritionData, preview ?? undefined, mealType);
     } catch (err) {
       setError(err instanceof Error ? err.message : "알 수 없는 오류");
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleSave = () => {
+    if (!result) return;
+    addRecord(result, preview ?? undefined, mealType);
+    handleReset();
   };
 
   const handleReset = () => {
@@ -216,7 +221,25 @@ export default function Home() {
         )}
 
         {/* 결과 카드 */}
-        {result && <NutritionCard data={result} />}
+        {result && (
+          <div className="space-y-3">
+            <NutritionCard data={result} />
+            <div className="flex gap-3">
+              <button
+                onClick={handleReset}
+                className="flex-1 py-3.5 rounded-xl border-2 border-gray-200 text-gray-600 font-semibold hover:bg-gray-50 transition-colors"
+              >
+                취소
+              </button>
+              <button
+                onClick={handleSave}
+                className="flex-[2] py-3.5 rounded-xl bg-gradient-to-r from-orange-400 to-rose-400 text-white font-bold shadow-md hover:shadow-lg hover:opacity-90 transition-all"
+              >
+                💾 기록에 저장하기
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* 안내 */}
         {!preview && !result && (
