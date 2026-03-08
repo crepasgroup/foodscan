@@ -1,6 +1,6 @@
 {
-  "name": "칼로리 렌즈",
-  "short_name": "칼로리렌즈",
+  "name": "푸드스캔",
+  "short_name": "푸드스캔",
   "description": "AI 음식 영양소 분석기 - 음식 사진으로 칼로리를 분석하세요",
   "start_url": "/",
   "display": "standalone",

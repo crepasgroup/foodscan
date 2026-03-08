@@ -15,13 +15,13 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "칼로리 렌즈 - AI 음식 영양소 분석기",
+  title: "푸드스캔 - AI 음식 영양소 분석기",
   description: "음식 사진을 업로드하면 AI가 칼로리, 단백질, 탄수화물, 지방을 분석해드립니다. 한국 음식 특화.",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "칼로리 렌즈",
+    title: "푸드스캔",
   },
   other: {
     "mobile-web-app-capable": "yes",

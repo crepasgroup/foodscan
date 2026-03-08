@@ -79,7 +79,7 @@ export default function Home() {
         <div className="max-w-2xl mx-auto px-4 py-4 flex items-center gap-3">
           <span className="text-3xl">🥗</span>
           <div>
-            <h1 className="text-xl font-extrabold text-gray-900">칼로리 렌즈</h1>
+            <h1 className="text-xl font-extrabold text-gray-900">푸드스캔</h1>
             <p className="text-xs text-gray-500">AI 음식 영양소 분석기</p>
           </div>
         </div>
