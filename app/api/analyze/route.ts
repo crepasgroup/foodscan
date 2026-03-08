@@ -101,7 +101,9 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(result);
   } catch (error) {
-    console.error("분석 오류:", error);
+    const message = error instanceof Error ? error.message : String(error);
+    const name = error instanceof Error ? error.constructor.name : "UnknownError";
+    console.error("분석 오류:", name, message);
 
     if (error instanceof SyntaxError) {
       return NextResponse.json(
@@ -109,14 +111,9 @@ export async function POST(req: NextRequest) {
         { status: 500 }
       );
     }
-    if (error instanceof Error && error.message.includes("timeout")) {
-      return NextResponse.json(
-        { error: "분석 시간이 초과되었습니다. 다시 시도해주세요." },
-        { status: 504 }
-      );
-    }
+    // 디버그용: 실제 에러 메시지를 응답에 포함 (원인 파악 후 제거 예정)
     return NextResponse.json(
-      { error: "분석 중 오류가 발생했습니다. 다시 시도해주세요." },
+      { error: `[${name}] ${message}` },
       { status: 500 }
     );
   }
