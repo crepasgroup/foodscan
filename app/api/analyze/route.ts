@@ -1,0 +1,98 @@
+import Anthropic from "@anthropic-ai/sdk";
+import { NextRequest, NextResponse } from "next/server";
+
+const client = new Anthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY,
+});
+
+const KOREAN_FOOD_PROMPT = `당신은 한국 음식 전문 영양사입니다. 사진에서 음식을 식별하고 영양 정보를 분석해주세요.
+
+분석 지침:
+1. 한국 음식(한식)에 특히 정통합니다: 밥, 국/찌개, 반찬, 면 요리, 분식 등
+2. 음식의 종류와 대략적인 양(1인분 기준)을 파악하세요
+3. 재료와 조리법을 고려하여 영양소를 추정하세요
+4. 확실하지 않은 경우 범위로 제시하세요
+
+반드시 아래 JSON 형식으로만 응답하세요 (다른 텍스트 없이):
+{
+  "foodName": "음식 이름 (한국어)",
+  "description": "음식에 대한 간단한 설명 (1-2문장)",
+  "servingSize": "분량 설명 (예: 1인분, 1공기 등)",
+  "nutrition": {
+    "calories": 숫자 (kcal),
+    "protein": 숫자 (g),
+    "carbs": 숫자 (g),
+    "fat": 숫자 (g),
+    "fiber": 숫자 (g),
+    "sodium": 숫자 (mg)
+  },
+  "ingredients": ["주재료1", "주재료2", "주재료3"],
+  "healthScore": 1~10 사이 숫자,
+  "healthComment": "건강 관련 한마디 (한국어)",
+  "confidence": "high" | "medium" | "low"
+}`;
+
+export async function POST(req: NextRequest) {
+  try {
+    const formData = await req.formData();
+    const imageFile = formData.get("image") as File;
+
+    if (!imageFile) {
+      return NextResponse.json({ error: "이미지가 없습니다." }, { status: 400 });
+    }
+
+    const bytes = await imageFile.arrayBuffer();
+    const base64 = Buffer.from(bytes).toString("base64");
+    const mediaType = imageFile.type as
+      | "image/jpeg"
+      | "image/png"
+      | "image/gif"
+      | "image/webp";
+
+    const response = await client.messages.create({
+      model: "claude-opus-4-6",
+      max_tokens: 1024,
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "image",
+              source: {
+                type: "base64",
+                media_type: mediaType,
+                data: base64,
+              },
+            },
+            {
+              type: "text",
+              text: KOREAN_FOOD_PROMPT,
+            },
+          ],
+        },
+      ],
+    });
+
+    const content = response.content[0];
+    if (content.type !== "text") {
+      throw new Error("텍스트 응답이 아닙니다.");
+    }
+
+    const jsonText = content.text.trim().replace(/^```json\s*/i, "").replace(/```\s*$/, "").trim();
+    const result = JSON.parse(jsonText);
+
+    return NextResponse.json(result);
+  } catch (error) {
+    console.error("분석 오류:", error);
+    if (error instanceof SyntaxError) {
+      return NextResponse.json(
+        { error: "AI 응답 파싱 실패. 다시 시도해주세요." },
+        { status: 500 }
+      );
+    }
+    return NextResponse.json(
+      { error: "분석 중 오류가 발생했습니다." },
+      { status: 500 }
+    );
+  }
+}
