@@ -132,6 +132,12 @@ export default function Home() {
     // 원본 preview 대신 소형 썸네일만 localStorage에 저장
     const thumbnail = preview ? await createThumbnail(preview) : undefined;
     addRecord(result, thumbnail || undefined, mealType);
+    // 서버에 스캔 횟수 기록 (관리자 통계용)
+    fetch("/api/admin/users", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "scan" }),
+    }).catch(() => {});
     handleReset();
   };
 
