@@ -15,11 +15,29 @@ export default function ImageUpload({ onImageSelect, isLoading }: ImageUploadPro
   const handleFile = useCallback(
     (file: File) => {
       if (!file.type.startsWith("image/")) return;
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        onImageSelect(file, e.target?.result as string);
+      // 갤러리 원본(수십MB)을 그대로 base64하지 않고
+      // 800px 압축 프리뷰를 생성해서 메모리/localStorage 부담을 줄임
+      const url = URL.createObjectURL(file);
+      const img = new window.Image();
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        const MAX = 800;
+        const scale = Math.min(1, MAX / Math.max(img.width, img.height));
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        canvas.getContext("2d")!.drawImage(img, 0, 0, canvas.width, canvas.height);
+        const preview = canvas.toDataURL("image/jpeg", 0.82);
+        onImageSelect(file, preview);
       };
-      reader.readAsDataURL(file);
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        // 캔버스 실패 시 FileReader로 폴백
+        const reader = new FileReader();
+        reader.onload = (e) => onImageSelect(file, e.target?.result as string);
+        reader.readAsDataURL(file);
+      };
+      img.src = url;
     },
     [onImageSelect]
   );
