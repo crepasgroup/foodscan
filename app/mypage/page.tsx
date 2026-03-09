@@ -16,6 +16,85 @@ const STAT_OPTIONS: { key: StatKey; label: string; unit: string; color: string; 
   { key: "fat", label: "지방", unit: "g", color: "#f43f5e", barColor: "bg-rose-400" },
 ];
 
+const NUTRIENTS = [
+  { key: "calories" as const, label: "칼로리", unit: "kcal" },
+  { key: "protein" as const, label: "단백질", unit: "g" },
+  { key: "carbs" as const, label: "탄수화물", unit: "g" },
+  { key: "fat" as const, label: "지방", unit: "g" },
+];
+
+function NutrientStatus({
+  totals, goalMultiplier, goals,
+}: {
+  totals: { calories: number; protein: number; carbs: number; fat: number };
+  goalMultiplier: number;
+  goals: { calories: number; protein: number; carbs: number; fat: number };
+}) {
+  const lacking = NUTRIENTS.filter((n) => totals[n.key] < goals[n.key] * goalMultiplier);
+  const excess  = NUTRIENTS.filter((n) => totals[n.key] > goals[n.key] * goalMultiplier);
+
+  if (lacking.length === 0 && excess.length === 0) {
+    return (
+      <div className="text-center py-3">
+        <p className="text-2xl mb-1">🎯</p>
+        <p className="text-sm font-semibold text-green-600">모든 영양소가 목표 범위 내에 있어요!</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      {lacking.length > 0 && (
+        <div>
+          <p className="text-xs font-semibold text-blue-500 mb-2">📉 부족한 영양소</p>
+          <div className="space-y-1.5">
+            {lacking.map((n) => {
+              const goal = goals[n.key] * goalMultiplier;
+              const diff = Math.round(goal - totals[n.key]);
+              const pct = Math.round((totals[n.key] / goal) * 100);
+              return (
+                <div key={n.key} className="flex items-center gap-2">
+                  <span className="text-xs text-gray-600 w-16 flex-shrink-0">{n.label}</span>
+                  <div className="flex-1 bg-gray-100 rounded-full h-2">
+                    <div className="h-2 rounded-full bg-blue-400 transition-all duration-500"
+                      style={{ width: `${Math.min(pct, 100)}%` }} />
+                  </div>
+                  <span className="text-xs text-blue-500 font-semibold w-20 text-right flex-shrink-0">
+                    -{diff}{n.unit} ({pct}%)
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+      {excess.length > 0 && (
+        <div>
+          <p className="text-xs font-semibold text-rose-500 mb-2">📈 초과된 영양소</p>
+          <div className="space-y-1.5">
+            {excess.map((n) => {
+              const goal = goals[n.key] * goalMultiplier;
+              const diff = Math.round(totals[n.key] - goal);
+              const pct = Math.round((totals[n.key] / goal) * 100);
+              return (
+                <div key={n.key} className="flex items-center gap-2">
+                  <span className="text-xs text-gray-600 w-16 flex-shrink-0">{n.label}</span>
+                  <div className="flex-1 bg-gray-100 rounded-full h-2 overflow-hidden">
+                    <div className="h-2 rounded-full bg-rose-400 transition-all duration-500" style={{ width: "100%" }} />
+                  </div>
+                  <span className="text-xs text-rose-500 font-semibold w-20 text-right flex-shrink-0">
+                    +{diff}{n.unit} ({pct}%)
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function NavArrows({
   onPrev, onNext, disableNext, label,
 }: { onPrev: () => void; onNext: () => void; disableNext: boolean; label: string }) {
@@ -122,6 +201,10 @@ export default function MyPage() {
       { calories: 0, protein: 0, carbs: 0, fat: 0 }), [monthlyData]);
 
   const maxMonthVal = Math.max(...monthlyData.map(getStatVal), 1);
+
+  // 현재 뷰 기준 totals & 목표 배수
+  const currentTotals = viewMode === "day" ? dayTotals : viewMode === "week" ? weekTotals : monthTotals;
+  const goalMultiplier = viewMode === "day" ? 1 : viewMode === "week" ? 7 : monthlyData.length;
 
   return (
     <main className="min-h-screen bg-gray-50">
@@ -291,6 +374,14 @@ export default function MyPage() {
               </>
             )}
           </div>
+        </section>
+
+        {/* 부족/초과 영양소 */}
+        <section className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+          <h2 className="text-sm font-semibold text-gray-600 mb-3">
+            {viewMode === "day" ? dayLabel : viewMode === "week" ? weekLabel : monthLabel} 영양소 분석
+          </h2>
+          <NutrientStatus totals={currentTotals} goalMultiplier={goalMultiplier} goals={goals} />
         </section>
 
         {/* 운동 현황 (주간 기준) */}
