@@ -19,8 +19,8 @@ export function verifyAdminToken(token: string): boolean {
   try {
     const decoded = Buffer.from(token, "base64").toString("utf-8");
     const [email, ts, sig] = decoded.split(":");
-    const adminEmail = process.env.ADMIN_EMAIL || "";
-    if (email !== adminEmail) return false;
+    const adminEmail = (process.env.ADMIN_EMAIL || "").trim().toLowerCase();
+    if (email.trim().toLowerCase() !== adminEmail) return false;
     if (Date.now() - parseInt(ts) > COOKIE_MAX_AGE * 1000) return false;
     const expected = createHmac("sha256", SECRET).update(`${email}:${ts}`).digest("hex");
     return sig === expected;
