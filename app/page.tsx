@@ -38,6 +38,24 @@ export default function Home() {
     setError(null);
   };
 
+  // localStorage 저장용 100x100px 소형 썸네일 생성 (~5KB)
+  const createThumbnail = (src: string): Promise<string> => {
+    return new Promise((resolve) => {
+      const img = new window.Image();
+      img.onload = () => {
+        const SIZE = 100;
+        const scale = Math.min(1, SIZE / Math.max(img.width, img.height));
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        canvas.getContext("2d")!.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL("image/jpeg", 0.7));
+      };
+      img.onerror = () => resolve("");
+      img.src = src;
+    });
+  };
+
   // 이미지를 최대 1280px로 리사이즈 후 JPEG 압축 (Vercel 4.5MB 제한 대응)
   const compressImage = (file: File): Promise<Blob> => {
     return new Promise((resolve, reject) => {
@@ -105,13 +123,15 @@ export default function Home() {
     }
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!result) return;
     if (!session) {
       setShowLoginModal(true);
       return;
     }
-    addRecord(result, preview ?? undefined, mealType);
+    // 원본 preview 대신 소형 썸네일만 localStorage에 저장
+    const thumbnail = preview ? await createThumbnail(preview) : undefined;
+    addRecord(result, thumbnail || undefined, mealType);
     handleReset();
   };
 

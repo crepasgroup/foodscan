@@ -29,8 +29,17 @@ export function useStorage<T>(key: string, initialValue: T) {
         if (typeof window !== "undefined") {
           try {
             localStorage.setItem(key, JSON.stringify(next));
-          } catch {
-            // quota exceeded etc.
+          } catch (e) {
+            // 용량 초과 시 imageDataUrl 제거 후 재시도
+            console.warn("localStorage 용량 초과, 이미지 제거 후 재시도:", e);
+            try {
+              const stripped = Array.isArray(next)
+                ? (next as Record<string, unknown>[]).map(({ imageDataUrl: _, ...rest }) => rest)
+                : next;
+              localStorage.setItem(key, JSON.stringify(stripped));
+            } catch {
+              // 그래도 실패하면 포기
+            }
           }
         }
         return next;
