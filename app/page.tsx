@@ -25,7 +25,8 @@ export default function Home() {
   const { data: session } = useSession();
   const [preview, setPreview] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [result, setResult] = useState<NutritionData | null>(null);
+  const [results, setResults] = useState<NutritionData[]>([]);
+  const [savedIds, setSavedIds] = useState<Set<number>>(new Set());
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [mealType, setMealType] = useState<MealType>(getMealTypeByHour());
@@ -34,7 +35,8 @@ export default function Home() {
   const handleImageSelect = (file: File, previewUrl: string) => {
     setSelectedFile(file);
     setPreview(previewUrl);
-    setResult(null);
+    setResults([]);
+    setSavedIds(new Set());
     setError(null);
   };
 
@@ -86,7 +88,8 @@ export default function Home() {
 
     setIsLoading(true);
     setError(null);
-    setResult(null);
+    setResults([]);
+    setSavedIds(new Set());
 
     try {
       const compressed = await compressImage(selectedFile);
@@ -115,7 +118,8 @@ export default function Home() {
         throw new Error(data.error || "분석 실패");
       }
 
-      setResult(data as NutritionData);
+      const items = Array.isArray(data) ? data as NutritionData[] : [data as NutritionData];
+      setResults(items);
     } catch (err) {
       setError(err instanceof Error ? err.message : "알 수 없는 오류");
     } finally {
@@ -123,28 +127,43 @@ export default function Home() {
     }
   };
 
-  const handleSave = async () => {
-    if (!result) return;
-    if (!session) {
-      setShowLoginModal(true);
-      return;
-    }
-    // 원본 preview 대신 소형 썸네일만 localStorage에 저장
+  const saveItem = async (item: NutritionData, idx: number) => {
+    if (!session) { setShowLoginModal(true); return; }
+    if (savedIds.has(idx)) return;
     const thumbnail = preview ? await createThumbnail(preview) : undefined;
-    addRecord(result, thumbnail || undefined, mealType);
-    // 서버에 스캔 횟수 기록 (관리자 통계용)
+    addRecord(item, thumbnail || undefined, mealType);
+    setSavedIds((prev) => new Set(prev).add(idx));
     fetch("/api/admin/users", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "scan" }),
     }).catch(() => {});
-    handleReset();
+  };
+
+  const saveAll = async () => {
+    if (!session) { setShowLoginModal(true); return; }
+    const thumbnail = preview ? await createThumbnail(preview) : undefined;
+    const unsaved = results.filter((_, i) => !savedIds.has(i));
+    for (let i = 0; i < results.length; i++) {
+      if (!savedIds.has(i)) {
+        addRecord(results[i], thumbnail || undefined, mealType);
+        setSavedIds((prev) => new Set(prev).add(i));
+      }
+    }
+    if (unsaved.length > 0) {
+      fetch("/api/admin/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "scan" }),
+      }).catch(() => {});
+    }
   };
 
   const handleReset = () => {
     setPreview(null);
     setSelectedFile(null);
-    setResult(null);
+    setResults([]);
+    setSavedIds(new Set());
     setError(null);
   };
 
@@ -258,29 +277,59 @@ export default function Home() {
           </div>
         )}
 
-        {/* 결과 카드 */}
-        {result && (
-          <div className="space-y-3">
-            <NutritionCard data={result} />
-            <div className="flex gap-3">
+        {/* 결과 카드 (다중) */}
+        {results.length > 0 && (
+          <div className="space-y-4">
+            {/* 감지된 음식 수 */}
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-semibold text-gray-700">
+                🍽️ 음식 {results.length}가지 감지됨
+              </p>
+              <span className="text-xs text-gray-400">
+                {savedIds.size}/{results.length} 저장됨
+              </span>
+            </div>
+
+            {/* 개별 카드 */}
+            {results.map((item, idx) => (
+              <div key={idx} className="space-y-2">
+                <NutritionCard data={item} />
+                <button
+                  onClick={() => saveItem(item, idx)}
+                  disabled={savedIds.has(idx)}
+                  className={`w-full py-3 rounded-xl font-bold text-sm shadow-sm transition-all ${
+                    savedIds.has(idx)
+                      ? "bg-green-100 text-green-600 cursor-default"
+                      : "bg-gradient-to-r from-orange-400 to-rose-400 text-white hover:opacity-90"
+                  }`}
+                >
+                  {savedIds.has(idx) ? "✓ 저장됨" : `💾 "${item.foodName}" 저장`}
+                </button>
+              </div>
+            ))}
+
+            {/* 하단 버튼 */}
+            <div className="flex gap-3 pt-1">
               <button
                 onClick={handleReset}
                 className="flex-1 py-3.5 rounded-xl border-2 border-gray-200 text-gray-600 font-semibold hover:bg-gray-50 transition-colors"
               >
-                취소
+                닫기
               </button>
-              <button
-                onClick={handleSave}
-                className="flex-[2] py-3.5 rounded-xl bg-gradient-to-r from-orange-400 to-rose-400 text-white font-bold shadow-md hover:shadow-lg hover:opacity-90 transition-all"
-              >
-                💾 기록에 저장하기
-              </button>
+              {results.length > 1 && savedIds.size < results.length && (
+                <button
+                  onClick={saveAll}
+                  className="flex-[2] py-3.5 rounded-xl bg-gray-800 text-white font-bold shadow-md hover:opacity-90 transition-all"
+                >
+                  📋 전체 저장 ({results.length - savedIds.size}개)
+                </button>
+              )}
             </div>
           </div>
         )}
 
         {/* 안내 */}
-        {!preview && !result && (
+        {!preview && results.length === 0 && (
           <div className="text-center text-sm text-gray-400 space-y-1">
             <p>김치찌개, 비빔밥, 삼겹살, 떡볶이 등 한국 음식 분석에 최적화</p>
             <p>분석 결과는 AI 추정치로 실제와 다를 수 있습니다</p>
