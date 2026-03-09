@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import Image from "next/image";
 import { useApp } from "../context/AppContext";
 import { HistoryRecord, MealType, MEAL_TYPE_LABELS, MEAL_TYPE_ICONS } from "../types";
@@ -22,13 +22,99 @@ function RecordCard({
   isFaved,
   onDelete,
   onToggleFavorite,
+  onUpdateLeftover,
 }: {
   record: HistoryRecord;
   isFaved: boolean;
   onDelete: () => void;
   onToggleFavorite: () => void;
+  onUpdateLeftover: (leftoverCalories: number | undefined) => void;
 }) {
   const n = record.nutrition.nutrition;
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [showLeftover, setShowLeftover] = useState(false);
+  const [leftoverFile, setLeftoverFile] = useState<File | null>(null);
+  const [leftoverPreview, setLeftoverPreview] = useState<string | null>(null);
+  const [leftoverAnalyzing, setLeftoverAnalyzing] = useState(false);
+  const [leftoverResult, setLeftoverResult] = useState<number | null>(null);
+  const [leftoverError, setLeftoverError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const effectiveCalories = n.calories - (record.leftoverCalories || 0);
+
+  const handleDeleteClick = () => {
+    if (!confirmDelete) {
+      setConfirmDelete(true);
+      return;
+    }
+    onDelete();
+  };
+
+  const handleLeftoverFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setLeftoverFile(file);
+    setLeftoverResult(null);
+    setLeftoverError(null);
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      setLeftoverPreview(ev.target?.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleLeftoverAnalyze = async () => {
+    if (!leftoverFile) return;
+    setLeftoverAnalyzing(true);
+    setLeftoverError(null);
+    try {
+      const formData = new FormData();
+      formData.append("image", leftoverFile, "image.jpg");
+      const res = await fetch("/api/analyze", { method: "POST", body: formData });
+      const text = await res.text();
+      let data: { error?: string; nutrition?: { nutrition?: { calories?: number } } };
+      try {
+        data = JSON.parse(text);
+      } catch {
+        throw new Error("서버 오류가 발생했습니다.");
+      }
+      if (!res.ok) throw new Error(data.error || "분석 실패");
+      const calories = (data as { nutrition?: { nutrition?: { calories?: number } } })?.nutrition?.nutrition?.calories;
+      if (calories !== undefined) {
+        setLeftoverResult(calories);
+      } else {
+        // data itself might be NutritionData structure
+        const nd = data as { nutrition?: { calories?: number } };
+        const cal2 = nd?.nutrition?.calories;
+        if (cal2 !== undefined) {
+          setLeftoverResult(cal2);
+        } else {
+          setLeftoverResult(0);
+        }
+      }
+    } catch (err) {
+      setLeftoverError(err instanceof Error ? err.message : "오류 발생");
+    } finally {
+      setLeftoverAnalyzing(false);
+    }
+  };
+
+  const handleLeftoverApply = () => {
+    if (leftoverResult === null) return;
+    onUpdateLeftover(leftoverResult);
+    setShowLeftover(false);
+    setLeftoverFile(null);
+    setLeftoverPreview(null);
+    setLeftoverResult(null);
+  };
+
+  const handleLeftoverCancel = () => {
+    setShowLeftover(false);
+    setLeftoverFile(null);
+    setLeftoverPreview(null);
+    setLeftoverResult(null);
+    setLeftoverError(null);
+  };
 
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
@@ -65,22 +151,120 @@ function RecordCard({
               >
                 {isFaved ? "⭐" : "☆"}
               </button>
-              <button
-                onClick={onDelete}
-                className="text-lg text-gray-300 hover:text-red-400 transition-colors"
-              >
-                🗑️
-              </button>
+              {/* 삭제 버튼 + 인라인 확인 */}
+              {confirmDelete ? (
+                <div className="flex items-center gap-1">
+                  <span className="text-xs text-gray-500">삭제?</span>
+                  <button
+                    onClick={handleDeleteClick}
+                    className="text-xs px-2 py-1 rounded-lg bg-red-500 text-white font-semibold"
+                  >
+                    삭제
+                  </button>
+                  <button
+                    onClick={() => setConfirmDelete(false)}
+                    className="text-xs px-2 py-1 rounded-lg bg-gray-100 text-gray-600 font-semibold"
+                  >
+                    취소
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={handleDeleteClick}
+                  className="text-lg text-gray-300 hover:text-red-400 transition-colors"
+                >
+                  🗑️
+                </button>
+              )}
             </div>
           </div>
-          <div className="flex gap-3 mt-2 text-xs text-gray-500">
+          <div className="flex gap-3 mt-2 text-xs text-gray-500 flex-wrap">
             <span className="font-bold text-orange-500">{n.calories} kcal</span>
+            {record.leftoverCalories ? (
+              <span className="text-green-600 font-semibold">
+                실제: {effectiveCalories} kcal ({record.leftoverCalories} kcal 제외)
+              </span>
+            ) : null}
             <span>단백질 {n.protein}g</span>
             <span>탄수 {n.carbs}g</span>
             <span>지방 {n.fat}g</span>
           </div>
+          {/* 남긴음식 등록 버튼 */}
+          <button
+            onClick={() => setShowLeftover((v) => !v)}
+            className="mt-2 text-xs text-gray-400 hover:text-orange-500 transition-colors"
+          >
+            🍽️ 남긴음식 등록
+          </button>
         </div>
       </div>
+
+      {/* 남긴음식 인라인 UI */}
+      {showLeftover && (
+        <div className="border-t border-gray-100 p-4 bg-orange-50/30 space-y-3">
+          <p className="text-xs font-semibold text-gray-600">남긴 음식 사진을 업로드하세요</p>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={handleLeftoverFileChange}
+          />
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="w-full py-2 rounded-xl border-2 border-dashed border-orange-300 text-sm text-orange-500 font-semibold hover:bg-orange-50 transition-colors"
+          >
+            {leftoverFile ? leftoverFile.name : "사진 선택"}
+          </button>
+          {leftoverPreview && (
+            <div className="relative w-full aspect-video rounded-xl overflow-hidden bg-gray-100">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={leftoverPreview} alt="남긴음식" className="w-full h-full object-contain" />
+            </div>
+          )}
+          {leftoverFile && !leftoverResult && (
+            <button
+              onClick={handleLeftoverAnalyze}
+              disabled={leftoverAnalyzing}
+              className="w-full py-2 rounded-xl bg-orange-400 text-white text-sm font-bold hover:opacity-90 disabled:opacity-60 transition-all"
+            >
+              {leftoverAnalyzing ? "분석 중..." : "🔍 분석하기"}
+            </button>
+          )}
+          {leftoverError && (
+            <p className="text-xs text-red-500">{leftoverError}</p>
+          )}
+          {leftoverResult !== null && (
+            <div className="space-y-2">
+              <p className="text-sm font-semibold text-gray-700">
+                남긴음식: <span className="text-orange-500">{leftoverResult} kcal</span>
+              </p>
+              <div className="flex gap-2">
+                <button
+                  onClick={handleLeftoverApply}
+                  className="flex-1 py-2 rounded-xl bg-green-500 text-white text-sm font-bold hover:opacity-90 transition-all"
+                >
+                  적용
+                </button>
+                <button
+                  onClick={handleLeftoverCancel}
+                  className="flex-1 py-2 rounded-xl bg-gray-100 text-gray-600 text-sm font-semibold hover:bg-gray-200 transition-all"
+                >
+                  취소
+                </button>
+              </div>
+            </div>
+          )}
+          {!leftoverFile && (
+            <button
+              onClick={handleLeftoverCancel}
+              className="w-full py-1.5 text-xs text-gray-400 hover:text-gray-600"
+            >
+              닫기
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -97,7 +281,7 @@ const FILTERS: { key: FilterType; label: string; icon: string }[] = [
 ];
 
 export default function HistoryPage() {
-  const { history, favorites, deleteRecord, addFavorite, removeFavorite } = useApp();
+  const { history, favorites, deleteRecord, addFavorite, removeFavorite, updateLeftover } = useApp();
   const [filter, setFilter] = useState<FilterType>("all");
 
   const filteredHistory = history.filter((r) => {
@@ -164,7 +348,7 @@ export default function HistoryPage() {
         {sortedDates.map((date) => {
           const records = grouped[date];
           const dayTotal = records.reduce(
-            (sum, r) => sum + r.nutrition.nutrition.calories,
+            (sum, r) => sum + r.nutrition.nutrition.calories - (r.leftoverCalories || 0),
             0
           );
           return (
@@ -185,6 +369,7 @@ export default function HistoryPage() {
                     isFaved={favorites.some((f) => f.id === r.id)}
                     onDelete={() => deleteRecord(r.id)}
                     onToggleFavorite={() => handleToggleFavorite(r)}
+                    onUpdateLeftover={(lc) => updateLeftover(r.id, lc)}
                   />
                 ))}
               </div>

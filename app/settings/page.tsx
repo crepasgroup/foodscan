@@ -1,22 +1,26 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useSession, signOut } from "next-auth/react";
 import { useApp } from "../context/AppContext";
-import { UserSettings } from "../types";
+import { UserSettings, DEFAULT_SETTINGS } from "../types";
 
 export default function SettingsPage() {
   const { settings, updateSettings, clearAll } = useApp();
-  const [form, setForm] = useState<UserSettings>(settings);
+  const { data: session } = useSession();
+  const [form, setForm] = useState<UserSettings>({ ...DEFAULT_SETTINGS, ...settings });
   const [saved, setSaved] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
 
   useEffect(() => {
-    setForm(settings);
+    setForm({ ...DEFAULT_SETTINGS, ...settings });
   }, [settings]);
 
   const handleChange = (field: string, value: string | number) => {
     if (field === "name") {
       setForm((prev) => ({ ...prev, name: value as string }));
+    } else if (field === "height" || field === "weight" || field === "goalSteps") {
+      setForm((prev) => ({ ...prev, [field]: Number(value) }));
     } else {
       setForm((prev) => ({
         ...prev,
@@ -50,6 +54,37 @@ export default function SettingsPage() {
       </header>
 
       <div className="max-w-2xl mx-auto px-4 py-4 space-y-4">
+        {/* 로그인 사용자 정보 */}
+        {session && (
+          <section className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+            <h2 className="text-sm font-semibold text-gray-600 mb-4">계정 정보</h2>
+            <div className="flex items-center gap-4">
+              {session.user?.image && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={session.user.image}
+                  alt="프로필"
+                  className="w-12 h-12 rounded-full object-cover border border-gray-200"
+                />
+              )}
+              <div className="flex-1 min-w-0">
+                {session.user?.name && (
+                  <p className="font-semibold text-gray-900 truncate">{session.user.name}</p>
+                )}
+                {session.user?.email && (
+                  <p className="text-xs text-gray-500 truncate">{session.user.email}</p>
+                )}
+              </div>
+              <button
+                onClick={() => signOut({ callbackUrl: "/" })}
+                className="flex-shrink-0 px-4 py-2 rounded-xl bg-gray-100 text-gray-600 text-sm font-semibold hover:bg-gray-200 transition-colors"
+              >
+                로그아웃
+              </button>
+            </div>
+          </section>
+        )}
+
         {/* 프로필 */}
         <section className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
           <h2 className="text-sm font-semibold text-gray-600 mb-4">프로필</h2>
@@ -62,6 +97,53 @@ export default function SettingsPage() {
               placeholder="이름을 입력하세요"
               className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-orange-300 text-sm"
             />
+          </div>
+        </section>
+
+        {/* 신체 정보 */}
+        <section className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+          <h2 className="text-sm font-semibold text-gray-600 mb-4">신체 정보</h2>
+          <div className="space-y-4">
+            {/* 키 슬라이더 */}
+            <div>
+              <div className="flex justify-between mb-1">
+                <label className="text-sm font-medium text-gray-700">키</label>
+                <span className="text-sm font-bold text-orange-500">{form.height ?? 170} cm</span>
+              </div>
+              <input
+                type="range"
+                min={140}
+                max={200}
+                step={1}
+                value={form.height ?? 170}
+                onChange={(e) => handleChange("height", e.target.value)}
+                className="w-full accent-orange-400"
+              />
+              <div className="flex justify-between text-xs text-gray-400 mt-0.5">
+                <span>140cm</span>
+                <span>200cm</span>
+              </div>
+            </div>
+            {/* 몸무게 슬라이더 */}
+            <div>
+              <div className="flex justify-between mb-1">
+                <label className="text-sm font-medium text-gray-700">몸무게</label>
+                <span className="text-sm font-bold text-orange-500">{form.weight ?? 65} kg</span>
+              </div>
+              <input
+                type="range"
+                min={30}
+                max={150}
+                step={1}
+                value={form.weight ?? 65}
+                onChange={(e) => handleChange("weight", e.target.value)}
+                className="w-full accent-orange-400"
+              />
+              <div className="flex justify-between text-xs text-gray-400 mt-0.5">
+                <span>30kg</span>
+                <span>150kg</span>
+              </div>
+            </div>
           </div>
         </section>
 

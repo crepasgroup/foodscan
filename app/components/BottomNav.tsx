@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 const tabs = [
   { href: "/", label: "홈", icon: "🏠" },
   { href: "/history", label: "기록", icon: "📋" },
+  { href: "/exercise", label: "운동", icon: "🏃" },
   { href: "/mypage", label: "마이", icon: "👤" },
   { href: "/settings", label: "설정", icon: "⚙️" },
 ];

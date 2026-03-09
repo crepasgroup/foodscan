@@ -40,6 +40,7 @@ export interface HistoryRecord {
   nutrition: NutritionData;
   isFavorite: boolean;
   mealType?: MealType;
+  leftoverCalories?: number;
 }
 
 export interface FavoriteFood {
@@ -58,9 +59,22 @@ export interface UserSettings {
     carbs: number;
     fat: number;
   };
+  height: number;   // cm
+  weight: number;   // kg
+  goalSteps: number; // 일일 목표 걸음수
 }
 
 export const DEFAULT_SETTINGS: UserSettings = {
   name: "",
   goals: { calories: 2000, protein: 60, carbs: 250, fat: 65 },
+  height: 170,
+  weight: 65,
+  goalSteps: 10000,
 };
+
+export interface ExerciseRecord {
+  date: string;          // "YYYY-MM-DD"
+  steps: number;
+  caloriesBurned: number;
+  updatedAt: number;
+}

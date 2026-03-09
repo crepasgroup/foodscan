@@ -9,13 +9,19 @@ import {
   DEFAULT_SETTINGS,
   NutritionData,
   MealType,
+  ExerciseRecord,
 } from "../types";
+
+function getLocalDateStr(d: Date = new Date()): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
 
 interface AppContextValue {
   history: HistoryRecord[];
   addRecord: (nutrition: NutritionData, imageDataUrl?: string, mealType?: MealType) => void;
   deleteRecord: (id: string) => void;
   toggleFavoriteRecord: (id: string) => void;
+  updateLeftover: (id: string, leftoverCalories: number | undefined) => void;
 
   favorites: FavoriteFood[];
   addFavorite: (record: HistoryRecord) => void;
@@ -24,6 +30,10 @@ interface AppContextValue {
   settings: UserSettings;
   updateSettings: (s: UserSettings) => void;
   clearAll: () => void;
+
+  exerciseRecords: ExerciseRecord[];
+  updateExercise: (date: string, steps: number, weight: number) => void;
+  getExerciseByDate: (date: string) => ExerciseRecord | undefined;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -41,13 +51,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     "calorie-lens:settings",
     DEFAULT_SETTINGS
   );
+  const [exerciseRecords, setExerciseRecords] = useStorage<ExerciseRecord[]>(
+    "calorie-lens:exercise",
+    []
+  );
 
   const addRecord = useCallback(
     (nutrition: NutritionData, imageDataUrl?: string, mealType?: MealType) => {
       const now = Date.now();
       const record: HistoryRecord = {
         id: now.toString(),
-        date: new Date(now).toISOString().slice(0, 10),
+        date: getLocalDateStr(new Date(now)),
         timestamp: now,
         imageDataUrl,
         nutrition,
@@ -71,6 +85,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setHistory((prev) =>
         prev.map((r) =>
           r.id === id ? { ...r, isFavorite: !r.isFavorite } : r
+        )
+      );
+    },
+    [setHistory]
+  );
+
+  const updateLeftover = useCallback(
+    (id: string, leftoverCalories: number | undefined) => {
+      setHistory((prev) =>
+        prev.map((r) =>
+          r.id === id ? { ...r, leftoverCalories } : r
         )
       );
     },
@@ -112,7 +137,36 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setHistory([]);
     setFavorites([]);
     setSettings(DEFAULT_SETTINGS);
-  }, [setHistory, setFavorites, setSettings]);
+    setExerciseRecords([]);
+  }, [setHistory, setFavorites, setSettings, setExerciseRecords]);
+
+  const updateExercise = useCallback(
+    (date: string, steps: number, weight: number) => {
+      const caloriesBurned = Math.round(steps * weight * 0.0005);
+      setExerciseRecords((prev) => {
+        const existing = prev.find((r) => r.date === date);
+        if (existing) {
+          return prev.map((r) =>
+            r.date === date
+              ? { ...r, steps, caloriesBurned, updatedAt: Date.now() }
+              : r
+          );
+        }
+        return [
+          ...prev,
+          { date, steps, caloriesBurned, updatedAt: Date.now() },
+        ];
+      });
+    },
+    [setExerciseRecords]
+  );
+
+  const getExerciseByDate = useCallback(
+    (date: string): ExerciseRecord | undefined => {
+      return exerciseRecords.find((r) => r.date === date);
+    },
+    [exerciseRecords]
+  );
 
   return (
     <AppContext.Provider
@@ -121,12 +175,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         addRecord,
         deleteRecord,
         toggleFavoriteRecord,
+        updateLeftover,
         favorites,
         addFavorite,
         removeFavorite,
         settings,
         updateSettings,
         clearAll,
+        exerciseRecords,
+        updateExercise,
+        getExerciseByDate,
       }}
     >
       {children}
