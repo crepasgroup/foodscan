@@ -100,13 +100,15 @@ export default function ExercisePage() {
     }
   }, []);
 
-  // 컴포넌트 언마운트 시 정리
+  // 페이지 진입 시 자동으로 측정 시작
   useEffect(() => {
+    startTracking();
     return () => {
       if (listenerRef.current) {
         window.removeEventListener("devicemotion", listenerRef.current);
       }
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleManualSave = () => {
@@ -201,29 +203,29 @@ export default function ExercisePage() {
           )}
 
           {sensorAvailable && !permissionDenied && (
-            <button
-              onClick={isTracking ? stopTracking : startTracking}
-              className={`w-full py-4 rounded-xl font-bold text-white text-lg transition-all shadow-md ${
-                isTracking
-                  ? "bg-red-400 hover:bg-red-500"
-                  : "bg-gradient-to-r from-blue-400 to-cyan-400 hover:opacity-90"
-              }`}
-            >
+            <>
               {isTracking ? (
-                <span className="flex items-center justify-center gap-2">
-                  <span className="animate-pulse">⏹</span> 측정 정지
-                </span>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-center gap-2 py-2">
+                    <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+                    <span className="text-sm text-green-500 font-semibold">자동 감지 중...</span>
+                  </div>
+                  <button
+                    onClick={stopTracking}
+                    className="w-full py-3 rounded-xl font-semibold text-sm text-red-500 border-2 border-red-200 hover:bg-red-50 transition-colors"
+                  >
+                    ⏹ 측정 중단
+                  </button>
+                </div>
               ) : (
-                <span>▶ 측정 시작</span>
+                <button
+                  onClick={startTracking}
+                  className="w-full py-4 rounded-xl font-bold text-white text-lg bg-gradient-to-r from-blue-400 to-cyan-400 hover:opacity-90 transition-all shadow-md"
+                >
+                  ▶ 측정 재시작
+                </button>
               )}
-            </button>
-          )}
-
-          {isTracking && (
-            <div className="flex items-center justify-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-              <span className="text-xs text-green-500 font-semibold">자동 감지 중...</span>
-            </div>
+            </>
           )}
 
           {/* 수동 입력 */}
